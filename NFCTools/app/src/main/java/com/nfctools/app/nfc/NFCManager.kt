@@ -86,9 +86,9 @@ class NFCManager(private val context: Context) {
             }
         )
         val filters = arrayOf(
-            android.nfc.NfcIntentFilter("android.nfc.action.NDEF_DISCOVERED"),
-            android.nfc.NfcIntentFilter("android.nfc.action.TECH_DISCOVERED"),
-            android.nfc.NfcIntentFilter("android.nfc.action.TAG_DISCOVERED")
+            android.content.IntentFilter("android.nfc.action.NDEF_DISCOVERED"),
+            android.content.IntentFilter("android.nfc.action.TECH_DISCOVERED"),
+            android.content.IntentFilter("android.nfc.action.TAG_DISCOVERED")
         )
         nfcAdapter?.enableForegroundDispatch(activity, pendingIntent, filters, null)
     }
@@ -137,12 +137,11 @@ class NFCManager(private val context: Context) {
         val tnf = when (record.tnf) {
             NdefRecord.TNF_EMPTY -> "EMPTY"
             NdefRecord.TNF_WELL_KNOWN -> "WELL_KNOWN"
-            NdefRecord.TNF_MEDIA -> "MEDIA"
+            NdefRecord.TNF_MIME_MEDIA -> "MEDIA"
             NdefRecord.TNF_ABSOLUTE_URI -> "ABSOLUTE_URI"
             NdefRecord.TNF_EXTERNAL_TYPE -> "EXTERNAL_TYPE"
             NdefRecord.TNF_UNKNOWN -> "UNKNOWN"
             NdefRecord.TNF_UNCHANGED -> "UNCHANGED"
-            NdefRecord.TNF_RESERVED -> "RESERVED"
             else -> "UNKNOWN"
         }
         val type = String(record.type, Charset.forName("UTF-8"))
@@ -173,7 +172,7 @@ class NFCManager(private val context: Context) {
                     uri = uriPrefix + String(payload, 1, payload.size - 1, Charset.forName("UTF-8"))
                 }
             }
-            record.tnf == NdefRecord.TNF_MEDIA -> {
+            record.tnf == NdefRecord.TNF_MIME_MEDIA -> {
                 mimeType = type
                 text = bytesToHex(payload)
             }
@@ -184,7 +183,7 @@ class NFCManager(private val context: Context) {
             else -> { text = bytesToHex(payload) }
         }
 
-        NdefRecordInfo(
+        return NdefRecordInfo(
             tnf = tnf, type = type,
             payload = text ?: uri ?: bytesToHex(payload),
             mimeType = mimeType, uri = uri, languageCode = languageCode,
@@ -397,7 +396,7 @@ class NFCManager(private val context: Context) {
     private fun createUriRecord(uri: String): NdefRecord = NdefRecord.createUri(uri)
 
     private fun createContactRecord(vcardData: String): NdefRecord {
-        return NdefRecord(NdefRecord.TNF_MEDIA, "text/vcard".toByteArray(), ByteArray(0),
+        return NdefRecord(NdefRecord.TNF_MIME_MEDIA, "text/vcard".toByteArray(), ByteArray(0),
             vcardData.toByteArray(Charset.forName("UTF-8")))
     }
 

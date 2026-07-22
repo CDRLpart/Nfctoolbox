@@ -68,7 +68,7 @@ class NFCHostApduService : HostApduService() {
     private fun handleUpdateBinary(commandApdu: ByteArray): ByteArray {
         val offset = ((commandApdu[2].toInt() and 0xFF) shl 8) or (commandApdu[3].toInt() and 0xFF)
         val length = commandApdu[4].toInt()
-        if (commandApdu.size >= 5 + length) {
+        return if (commandApdu.size >= 5 + length) {
             val data = commandApdu.copyOfRange(5, 5 + length)
             val newNdef = ndefMessage.copyOf(maxOf(ndefMessage.size, offset + length))
             System.arraycopy(data, 0, newNdef, offset, length)

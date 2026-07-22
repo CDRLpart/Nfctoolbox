@@ -19,6 +19,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nfctools.app.viewmodel.NFCViewModel
 import com.nfctools.app.ui.theme.NfcGreen
+import com.nfctools.app.ui.theme.NfcBlue
+import com.nfctools.app.ui.theme.NfcPurple
+import com.nfctools.app.ui.theme.NfcOrange
+import com.nfctools.app.ui.theme.NfcCyan
+import com.nfctools.app.ui.theme.NfcYellow
 
 @Composable
 fun ScanScreen(viewModel: NFCViewModel) {

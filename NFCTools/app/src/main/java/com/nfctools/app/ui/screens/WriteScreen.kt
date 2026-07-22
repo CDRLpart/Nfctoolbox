@@ -108,12 +108,7 @@ fun WriteScreen(viewModel: NFCViewModel) {
                 val payload = when (selectedType) {
                     WriteType.TEXT -> WritePayload(WriteType.TEXT, textContent)
                     WriteType.URI -> WritePayload(WriteType.URI, uriContent)
-                    WriteType.CONTACT -> WritePayload(WriteType.CONTACT, "BEGIN:VCARD
-VERSION:3.0
-FN:$contactName
-TEL:$contactPhone
-EMAIL:$contactEmail
-END:VCARD")
+                    WriteType.CONTACT -> WritePayload(WriteType.CONTACT, "BEGIN:VCARD\nVERSION:3.0\nFN:$contactName\nTEL:$contactPhone\nEMAIL:$contactEmail\nEND:VCARD")
                     WriteType.WIFI -> WritePayload(WriteType.WIFI, "SSID:$wifiSsid;PWD:$wifiPassword")
                     WriteType.RAW_NDEF -> WritePayload(WriteType.RAW_NDEF, rawHex)
                     WriteType.RAW_DATA -> WritePayload(WriteType.RAW_DATA, rawHex, mimeType)
