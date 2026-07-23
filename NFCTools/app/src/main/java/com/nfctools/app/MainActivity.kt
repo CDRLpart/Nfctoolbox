@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.nfctools.app.nfc.NFCManager
 import com.nfctools.app.ui.screens.MainScreen
 import com.nfctools.app.ui.theme.NFCToolsTheme
 import com.nfctools.app.viewmodel.NFCViewModel
@@ -18,6 +19,7 @@ import com.nfctools.app.viewmodel.NFCViewModel
 class MainActivity : ComponentActivity() {
 
     private val viewModel: NFCViewModel by viewModels()
+    private val nfcManager by lazy { NFCManager(this) }
     private var nfcAdapter: NfcAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +39,12 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.checkNfcStatus()
+        nfcManager.enableForegroundDispatch(this)
+    }
+
+    override fun onPause() {
+        nfcManager.disableForegroundDispatch(this)
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {

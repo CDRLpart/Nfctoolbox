@@ -285,14 +285,14 @@ class NFCManager(private val context: Context) {
     private fun readMifareUltralightDetails(tag: Tag): MifareUltralightInfo? {
         val ultralight = MifareUltralight.get(tag) ?: return null
         return try {
-            ultralight.connect()
+            val size = getMifareUltralightSize(ultralight)
+            val pageCount = size / 4
             val type = when (ultralight.type) {
                 MifareUltralight.TYPE_ULTRALIGHT -> "Ultralight"
                 MifareUltralight.TYPE_ULTRALIGHT_C -> "Ultralight C"
                 else -> "Unknown"
             }
-            val pageCount = if (type == "Ultralight C") 48 else 16
-            val size = pageCount * 4
+            ultralight.connect()
             val pages = (0 until pageCount).map { pageIndex ->
                 val data = try { bytesToHex(ultralight.readPages(pageIndex)) } catch (e: Exception) { "READ_ERROR" }
                 PageInfo(index = pageIndex, data = data)
@@ -323,12 +323,29 @@ class NFCManager(private val context: Context) {
     private fun calculateTagSize(tag: Tag, techList: List<String>): Int {
         return when {
             "MifareClassic" in techList -> MifareClassic.get(tag)?.size ?: 0
-            "MifareUltralight" in techList -> {
-                val ul = MifareUltralight.get(tag)
-                if (ul?.type == MifareUltralight.TYPE_ULTRALIGHT_C) 192 else 64
-            }
+            "MifareUltralight" in techList -> MifareUltralight.get(tag)?.let { getMifareUltralightSize(it) } ?: 0
             "Ndef" in techList -> Ndef.get(tag)?.maxSize ?: 0
             else -> 0
+        }
+    }
+
+    private fun getMifareUltralightSize(ultralight: MifareUltralight): Int {
+        if (ultralight.type == MifareUltralight.TYPE_ULTRALIGHT_C) return 192
+        return try {
+            ultralight.connect()
+            val pages = (0 until 232 step 4).fold(0) { lastValidPages, pageIndex ->
+                try {
+                    ultralight.readPages(pageIndex)
+                    pageIndex + 4
+                } catch (_: Exception) {
+                    return@fold lastValidPages
+                }
+            }
+            ultralight.close()
+            if (pages > 0) pages * 4 else 64
+        } catch (e: Exception) {
+            try { ultralight.close() } catch (_: Exception) {}
+            64
         }
     }
 
@@ -455,6 +472,12 @@ class NFCManager(private val context: Context) {
             val techList = tag.techList.map { it.substringAfterLast('.') }
             val rawData = mutableListOf<ByteArray>()
             var ndefMessage: ByteArray? = null
+            val techType = when {
+                "MifareClassic" in techList -> "MifareClassic"
+                "MifareUltralight" in techList -> "MifareUltralight"
+                "IsoDep" in techList -> "IsoDep"
+                else -> techList.firstOrNull() ?: "Unknown"
+            }
 
             Ndef.get(tag)?.let { ndef ->
                 try {
@@ -489,8 +512,8 @@ class NFCManager(private val context: Context) {
             if ("MifareUltralight" in techList) {
                 MifareUltralight.get(tag)?.let { ultralight ->
                     try {
+                        val pageCount = getMifareUltralightSize(ultralight) / 4
                         ultralight.connect()
-                        val pageCount = if (ultralight.type == MifareUltralight.TYPE_ULTRALIGHT_C) 48 else 16
                         for (page in 0 until pageCount step 4) {
                             try { rawData.add(ultralight.readPages(page)) } catch (e: Exception) { rawData.add(ByteArray(16) { 0x00.toByte() }) }
                         }
@@ -499,7 +522,10 @@ class NFCManager(private val context: Context) {
                 }
             }
 
-            Result.success(TagCopyData(sourceId = bytesToHex(tag.id), techType = techList.firstOrNull() ?: "Unknown",
+            if (rawData.isEmpty() && ndefMessage == null) {
+                return@withContext Result.failure(Exception("Tag type not supported for copying"))
+            }
+            Result.success(TagCopyData(sourceId = bytesToHex(tag.id), techType = techType,
                 rawData = rawData, ndefMessage = ndefMessage))
         } catch (e: Exception) {
             Log.e(TAG, "Copy error", e)
@@ -544,6 +570,27 @@ class NFCManager(private val context: Context) {
                     } catch (e: Exception) { try { mifare.close() } catch (_: Exception) {} }
                 }
             }
+
+            if ("MifareUltralight" in tag.techList.map { it.substringAfterLast('.') } && copyData.techType == "MifareUltralight") {
+                MifareUltralight.get(tag)?.let { ultralight ->
+                    try {
+                        ultralight.connect()
+                        copyData.rawData.forEachIndexed { chunkIndex, chunk ->
+                            val pageStart = chunkIndex * 4
+                            if (chunk.size == 16) {
+                                for (pageOffset in 0 until 4) {
+                                    val pageIndex = pageStart + pageOffset
+                                    val pageBytes = chunk.copyOfRange(pageOffset * 4, pageOffset * 4 + 4)
+                                    try { ultralight.writePage(pageIndex, pageBytes) } catch (e: Exception) { Log.w(TAG, "Failed to write page $pageIndex", e) }
+                                }
+                            }
+                        }
+                        ultralight.close()
+                        return@withContext Result.success(Unit)
+                    } catch (e: Exception) { try { ultralight.close() } catch (_: Exception) {} }
+                }
+            }
+
             Result.failure(Exception("Could not write copy data to tag"))
         } catch (e: Exception) {
             Log.e(TAG, "Write copy error", e)
@@ -680,8 +727,8 @@ class NFCManager(private val context: Context) {
             if ("MifareUltralight" in techList) {
                 sb.appendLine("--- MIFARE ULTRALIGHT DUMP ---")
                 MifareUltralight.get(tag)?.let { ultralight ->
+                    val pageCount = getMifareUltralightSize(ultralight) / 4
                     ultralight.connect()
-                    val pageCount = if (ultralight.type == MifareUltralight.TYPE_ULTRALIGHT_C) 48 else 16
                     for (page in 0 until pageCount) {
                         val data = try { bytesToHex(ultralight.readPages(page).copyOf(4)) } catch (e: Exception) { "READ_ERROR" }
                         sb.appendLine("  Page $page: $data")
